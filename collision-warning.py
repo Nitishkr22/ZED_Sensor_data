@@ -25,7 +25,8 @@ from filterpy.kalman import KalmanFilter
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Quaternion, Vector3
 import numpy as np
-sys.path.insert(0, './yolov5')
+
+# sys.path.insert(0, './yolov5')
 
 
 rospy.init_node('perception', anonymous=True)
@@ -37,11 +38,14 @@ lock = Lock()
 run_signal = False
 exit_signal = False
 
-classes = ['person', 'bicycle', 'car', 'motorcycle', 'route board', 'bus', 'commercial vehicle', 'truck', 'traffic sign', 'traffic light', 'autorickshaw', 'stop sign', 'ambulance', 'bench',
-           'construction vehicle', 'animal', 'unmarked speed bump', 'marked speed bump', 'pothole', 'police vehicle', 'tractor', 'pushcart', 'temporary traffic barrier', 'rumblestrips', 'traffic cone', 'Zebra crossing']
+# classes = ['person', 'bicycle', 'car', 'motorcycle', 'route board', 'bus', 'commercial vehicle', 'truck', 'traffic sign', 'traffic light', 'autorickshaw', 'stop sign', 'ambulance', 'bench',
+#            'construction vehicle', 'animal', 'unmarked speed bump', 'marked speed bump', 'pothole', 'police vehicle', 'tractor', 'pushcart', 'temporary traffic barrier', 'rumblestrips', 'traffic cone', 'Zebra crossing']
+
+classes = ['Person', 'Bicycle', 'Car', 'Motorcycle', 'Route board', 'Bus', 'Commercial vehicle', 'Truck', 'Traffic sign', 'Traffic light', 'Autorickshaw', 'Stop sign', 'Ambulance', 'bench', 'construction vehicle', 'Animal', 'unmarked speed bump', 'marked speed bump', 'pothole', 'Police vehicle', 'Tractor', 'Pushcart', 'temporary traffic barrier', 'rumblestrips', 'traffic cone', 'Zebra crossing']
 
 # classes = ['Crosswalk', 'Speed Bump', 'Unmarked Bump']
-class_limit = [0, 1, 2, 3, 5, 6, 7, 10, 12, 13, 14, 15, 19, 20, 21, 25]
+# class_limit = [0, 1, 2, 3, 5, 6, 7, 10, 12, 13, 14, 15, 19, 20, 21, 25]
+class_limit = [0,1,2,3,5,6,7, 10, 12, 14, 15, 19, 20, 21]
 
 def quaternion_to_euler(quat):
     x, y, z, w = quat
@@ -184,20 +188,46 @@ def draw_bbox(img, object, color):
     c1, c2 = (xA, yA), (xB, yB)
     # center of object
     center_point = round((c1[0] + c2[0]) / 2), round((c1[1] + c2[1]) / 2)
-    angle = np.arctan2(object.velocity[0], object.velocity[1]) * 180 / np.pi
+    angle = np.arctan2(object.position[1], object.position[0]) * 180 / np.pi
+    dist = np.sqrt(object.position[0]**2 + object.position[1]**2)
+
     # dist = math.sqrt(object.position[0]*object.position[0] + object.position[1]*object.position[1])
     # vel = math.sqrt(object.velocity[0]*object.velocity[0] + object.velocity[1]*object.velocity[1])
     # if str(classes[object.raw_label])=='person':
     #     return img
+
     cv2.rectangle(img, (xA, yA), (xB, yB), color, 2)
     cv2.putText(img, str(classes[object.raw_label])+': '+str(round(
         object.confidence, 2)), (xA, yA-5), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, color, 2)
     # for each pedestrian show distance and velocity
-    cv2.putText(img, "Dist: " + str(round(object.position[0], 2))+"",
+    cv2.putText(img, "Dist: " + str(round(dist, 2))+"",
                 center_point, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
     cv2.putText(img, "Angle: " + str(round(angle, 2)),
                 (center_point[0], center_point[1]+20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
     return img
+# def draw_bbox(img, object, color, classes):
+#     xA = int(object.box[0])  # x_min
+#     yA = int(object.box[1])  # y_min
+#     xB = int(object.box[2])  # x_max
+#     yB = int(object.box[3])  # y_max
+
+#     c1, c2 = (xA, yA), (xB, yB)
+#     center_point = round((c1[0] + c2[0]) / 2), round((c1[1] + c2[1]) / 2)
+#     angle = np.arctan2(object.position[1], object.position[0]) * 180 / np.pi
+#     dist = np.sqrt(object.position[0]**2 + object.position[1]**2)
+
+#     cv2.rectangle(img, (xA, yA), (xB, yB), color, 2)
+#     cv2.putText(img, str(classes[object.label])+': '+str(round(object.conf, 2)),
+#                 (xA, yA-5), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, color, 2)
+    
+#     # cv2.putText(img, "Dist: " + str(round(object.position[0], 2))+"",
+#     #             center_point, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+#     cv2.putText(img, "Dist: " + str(round(dist, 2))+"",
+#                 center_point, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+#     cv2.putText(img, "Angle: " + str(round(angle, 2)),
+#                 (center_point[0], center_point[1]+20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
+    
+#     return img
 
 
 def main():
@@ -286,7 +316,7 @@ def main():
             imu_msg.angular_velocity = Vector3(*angular_velocity)
             
             imu_pub.publish(imu_msg)
-            ###############
+            ###################### IMU END ###############3
             lock.acquire()
             zed.retrieve_image(image_left_tmp, sl.VIEW.LEFT)
             image_net = image_left_tmp.get_data()
@@ -335,25 +365,38 @@ def main():
                     angle = np.arctan2(
                         obj.velocity[0], obj.velocity[1]) * 180 / np.pi
 
+                    dist = np.sqrt(obj.position[0]**2 + obj.position[1]**2)
                     # for person and vehicles
-                    if (obj.raw_label in class_limit and obj.position[0] < detecting_distance):
-                        # ax.clear()
-                        # angle_list.append(angle)
-                        # ax.plot(angle_list)
-                        # plt.savefig("plot_angle.png")
-                        # print(obj.position[0], obj.position[1], angle)
-                        if (obj.position[1] > left_right_distance and angle > -170 and angle < -95):
+                    # if (obj.raw_label in class_limit and dist < detecting_distance):
+                    #     # ax.clear()
+                    #     # angle_list.append(angle)
+                    #     # ax.plot(angle_list)
+                    #     # plt.savefig("plot_angle.png")
+                    #     # print(obj.position[0], obj.position[1], angle)
+                    #     if (obj.position[1] > left_right_distance and angle > -170 and angle < -95):
+                    #         color = (0, 128, 255)
+                    #         flag = 1
+                    #     if (obj.position[1] < -left_right_distance and angle > -85 and angle < -10):
+                    #         color = (0, 128, 255)
+                    #         flag = 1
+                    #     if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) <= caution_distance):
+                    #         color = (0, 128, 255)
+                    #         flag = 1
+                    #     if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) < stop_distance):
+                    #         color = (0, 0, 255)
+                    #         flag = 2
+                    if (obj.raw_label in class_limit and abs(obj.position[1]) < left_right_distance and dist < detecting_distance):
+                        if(dist<caution_distance):  #warning
                             color = (0, 128, 255)
                             flag = 1
-                        if (obj.position[1] < -left_right_distance and angle > -85 and angle < -10):
-                            color = (0, 128, 255)
-                            flag = 1
-                        if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) <= caution_distance):
-                            color = (0, 128, 255)
-                            flag = 1
-                        if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) < stop_distance):
+                        elif (dist<stop_distance): ### critical distance
                             color = (0, 0, 255)
                             flag = 2
+                    else:
+                        color = (0, 255, 0)
+                        flag = 0
+
+
 
                         image_net = draw_bbox(image_net, obj, color)
                     flag_list.append(flag)
@@ -396,7 +439,7 @@ if __name__ == '__main__':
                         default='best.pt', help='model.pt path(s)')
     parser.add_argument('--svo', type=str, default=None,
                         help='optional svo file')
-    parser.add_argument('--img_size', type=int, default=640,
+    parser.add_argument('--img_size', type=int, default=360,
                         help='inference size (pixels)')
     parser.add_argument('--conf_thres', type=float,
                         default=0.6, help='object confidence threshold')
