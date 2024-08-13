@@ -13,7 +13,7 @@ import math
 import sys
 import time
 import tkinter
-
+import math as m
 import cv2
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -46,7 +46,14 @@ classes = ['Person', 'Bicycle', 'Car', 'Motorcycle', 'Route board', 'Bus', 'Comm
 # classes = ['Crosswalk', 'Speed Bump', 'Unmarked Bump']
 # class_limit = [0, 1, 2, 3, 5, 6, 7, 10, 12, 13, 14, 15, 19, 20, 21, 25]
 class_limit = [0,1,2,3,5,6,7, 10, 12, 14, 15, 19, 20, 21]
+v = 0
+def _parse_gps_vel(msg):
+    global v
 
+    x_vel = msg.x
+    y_vel = msg.y
+    
+    v = m.sqrt(x_vel**2 + y_vel**2)
 def quaternion_to_euler(quat):
     x, y, z, w = quat
     t0 = +2.0 * (w * x + y * z)
@@ -205,29 +212,6 @@ def draw_bbox(img, object, color):
     cv2.putText(img, "Angle: " + str(round(angle, 2)),
                 (center_point[0], center_point[1]+20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
     return img
-# def draw_bbox(img, object, color, classes):
-#     xA = int(object.box[0])  # x_min
-#     yA = int(object.box[1])  # y_min
-#     xB = int(object.box[2])  # x_max
-#     yB = int(object.box[3])  # y_max
-
-#     c1, c2 = (xA, yA), (xB, yB)
-#     center_point = round((c1[0] + c2[0]) / 2), round((c1[1] + c2[1]) / 2)
-#     angle = np.arctan2(object.position[1], object.position[0]) * 180 / np.pi
-#     dist = np.sqrt(object.position[0]**2 + object.position[1]**2)
-
-#     cv2.rectangle(img, (xA, yA), (xB, yB), color, 2)
-#     cv2.putText(img, str(classes[object.label])+': '+str(round(object.conf, 2)),
-#                 (xA, yA-5), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, color, 2)
-    
-#     # cv2.putText(img, "Dist: " + str(round(object.position[0], 2))+"",
-#     #             center_point, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-#     cv2.putText(img, "Dist: " + str(round(dist, 2))+"",
-#                 center_point, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-#     cv2.putText(img, "Angle: " + str(round(angle, 2)),
-#                 (center_point[0], center_point[1]+20), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 2)
-    
-#     return img
 
 
 def main():
@@ -236,7 +220,7 @@ def main():
     stop_distance = 16  # in meteres in front of car
     detecting_distance = 35         #
     caution_distance = 23  # in  actual 13.6 m
-
+    rospy.Subscriber('/calculated_velocity', Vector3,_parse_gps_vel, queue_size=10)
     capture_thread = Thread(target=torch_thread, kwargs={
                             'weights': opt.weights, 'img_size': opt.img_size, "conf_thres": opt.conf_thres})
     capture_thread.start()
@@ -298,11 +282,17 @@ def main():
     i = 0
     angle_list = []
     imu_msg = Imu()
+    
     while not exit_signal:
+        print("vvvvvvvvvvvvvvvv: ",v)
+        # if(v>)
+        tm = 2.0
+        sd = tm*v + 7 ## (tm unit is time (sec))
 
         if zed.grab(runtime_params) == sl.ERROR_CODE.SUCCESS:
             # -- Get the image
             #############
+            
             zed.get_sensors_data(sensors_data, sl.TIME_REFERENCE.IMAGE)
             imu_data = sensors_data.get_imu_data()
             orientation = imu_data.get_pose().get_orientation().get()
@@ -362,8 +352,8 @@ def main():
                         continue
 
                     color = (0, 255, 0)
-                    angle = np.arctan2(
-                        obj.velocity[0], obj.velocity[1]) * 180 / np.pi
+                    # angle = np.arctan2(
+                    #     obj.velocity[0], obj.velocity[1]) * 180 / np.pi
 
                     dist = np.sqrt(obj.position[0]**2 + obj.position[1]**2)
                     # for person and vehicles
@@ -386,19 +376,20 @@ def main():
                     #         color = (0, 0, 255)
                     #         flag = 2
                     if (obj.raw_label in class_limit and abs(obj.position[1]) < left_right_distance and dist < detecting_distance):
-                        if(dist<caution_distance):  #warning
+
+                        if(dist<sd and dist>stop_distance):  #warning
                             color = (0, 128, 255)
                             flag = 1
                         elif (dist<stop_distance): ### critical distance
                             color = (0, 0, 255)
-                            flag = 2
-                    else:
-                        color = (0, 255, 0)
-                        flag = 0
+                            flag = 2   ### sd  = 5
+                        else:
+                            color = (0, 255, 0)
+                            flag = 0
 
 
 
-                        image_net = draw_bbox(image_net, obj, color)
+                    image_net = draw_bbox(image_net, obj, color)
                     flag_list.append(flag)
                     # file.write(str(time.time())+","+str(obj.raw_label)+","+str(obj.id)+","+str(flag)+","+str(obj.position[0])+","+str(obj.position[1])+","+str(angle)+","+str(current_vel)+"\n")
 
