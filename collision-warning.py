@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-from utils.general import (check_img_size, non_max_suppression, scale_coords, xyxy2xywh)
+# from utils.general import (check_img_size, non_max_suppression, scale_coords, xyxy2xywh)
+rom utils.general import (
+    check_img_size, non_max_suppression, scale_coords, xyxy2xywh)
 from utils.torch_utils import select_device
 from utils.augmentations import letterbox
 from std_msgs.msg import Float32, String
