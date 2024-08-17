@@ -32,6 +32,7 @@ import numpy as np
 rospy.init_node('perception', anonymous=True)
 
 Flag = rospy.Publisher('collision', Float32, queue_size=1)
+dist_pub = rospy.Publisher('zed_distance',Float32,queue_size=5)
 imu_pub = rospy.Publisher('/zed/imu', Imu, queue_size=10)
 
 lock = Lock()
@@ -135,11 +136,6 @@ def detections_to_custom_box(detections, im, im0):
 
                     # Creating ingestable objects for the ZED SDK
                     obj = sl.CustomBoxObjectData()
-                    # print("dddddddddddddd: ",xywh)
-                    # print("wwwwwwwwwwwwww: ",im0.shape)
-                    # if any(value < 0 for value in xywh):
-                    #     print(f"Error: Negative value found in xywh: {xywh}")
-                    #     continue
                     obj.bounding_box_2d = xywh2abcd(xywh, im0.shape)
                     obj.label = cls
                     obj.probability = conf
@@ -219,7 +215,7 @@ def main():
     left_right_distance = 1.6  # in meteres in either side
     stop_distance = 16  # in meteres in front of car
     detecting_distance = 35         #
-    caution_distance = 23  # in  actual 13.6 m
+    # caution_distance = 23  # in  actual 13.6 m
     rospy.Subscriber('/calculated_velocity', Vector3,_parse_gps_vel, queue_size=10)
     capture_thread = Thread(target=torch_thread, kwargs={
                             'weights': opt.weights, 'img_size': opt.img_size, "conf_thres": opt.conf_thres})
@@ -236,8 +232,7 @@ def main():
         input_type.set_from_svo_file(opt.svo)
 
     # Create a InitParameters object and set configuration parameters
-    init_params = sl.InitParameters(
-        input_t=input_type, svo_real_time_mode=True)
+    init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=True)
     init_params.camera_resolution = sl.RESOLUTION.HD720
     init_params.coordinate_units = sl.UNIT.METER
     init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE  # QUALITY
@@ -275,12 +270,12 @@ def main():
     # new_file=time.time()
     # file=open(str(new_file)+"_perception","w")
 
-    obj_flag = 0
+    # obj_flag = 0
     no_obj = 0
-    fig, ax = plt.subplots()
-    plt.grid(True)
-    i = 0
-    angle_list = []
+    # fig, ax = plt.subplots()
+    # plt.grid(True)
+    # i = 0
+    # angle_list = []
     imu_msg = Imu()
     
     while not exit_signal:
@@ -339,11 +334,11 @@ def main():
             # when objects present then--->
             if len(obj_array) > 0:
                 obj_flag = 1
+                min_dist = float('inf')
 
                 no_obj = 0
                 # for each object detected in frame
                 for obj in objects.object_list:
-                    
                     if(obj.raw_label==25):
                         continue
                     # print("ssssssss: ",obj.raw_label)
@@ -352,30 +347,13 @@ def main():
                         continue
 
                     color = (0, 255, 0)
-                    # angle = np.arctan2(
-                    #     obj.velocity[0], obj.velocity[1]) * 180 / np.pi
 
                     dist = np.sqrt(obj.position[0]**2 + obj.position[1]**2)
-                    # for person and vehicles
-                    # if (obj.raw_label in class_limit and dist < detecting_distance):
-                    #     # ax.clear()
-                    #     # angle_list.append(angle)
-                    #     # ax.plot(angle_list)
-                    #     # plt.savefig("plot_angle.png")
-                    #     # print(obj.position[0], obj.position[1], angle)
-                    #     if (obj.position[1] > left_right_distance and angle > -170 and angle < -95):
-                    #         color = (0, 128, 255)
-                    #         flag = 1
-                    #     if (obj.position[1] < -left_right_distance and angle > -85 and angle < -10):
-                    #         color = (0, 128, 255)
-                    #         flag = 1
-                    #     if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) <= caution_distance):
-                    #         color = (0, 128, 255)
-                    #         flag = 1
-                    #     if (abs(obj.position[1]) <= left_right_distance and abs(obj.position[0]) < stop_distance):
-                    #         color = (0, 0, 255)
-                    #         flag = 2
                     if (obj.raw_label in class_limit and abs(obj.position[1]) < left_right_distance and dist < detecting_distance):
+                        if(dist<min_dist):
+                            min_dist = dist
+                        if min_dist!=float('inf'):
+                            dist_pub.publish(min_dist)
 
                         if(dist<sd and dist>stop_distance):  #warning
                             color = (0, 128, 255)
@@ -416,7 +394,7 @@ def main():
         else:
             exit_signal = True
 
-    exit_signal = True
+    exit_signal = False
     cv2.destroyAllWindows()
     zed.disable_object_detection()
     zed.disable_positional_tracking()
